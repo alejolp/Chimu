@@ -13,25 +13,26 @@ NAMECHARSTART = set(string.ascii_letters)
 NAMECHAR = NAMECHARSTART | set(string.digits + "_")
 
 """
-S: name ':' E ';'
-E: name 
-  | E '|' E 
-  | '(' E ')'
+S: ['fragment'] name ':' B ';'
+T: name | ['~'] '[' text ']' | '{' text '}' ['?'] | '\'' text '\'' | '"' text '"'
+B: E ( '|' E )*
+E: T | '(' B ')' | E '*' | E '+' | E '?'
 """
 
 def parse(toks):
     i = 0
     d = {'grammar': None, 
         'options': {},
-        'tokens': []
-        'ats': []
+        'tokens': [],
+        'ats': [],
         'tree': {}}
     while i < len(toks):
+        # print i, toks[i], toks[i-10:i+10]
         if toks[i] == 'grammar':
             # grammar X ;
             d['grammar'] = toks[i+1]
             assert toks[i+2] == ';'
-            i += 2
+            i += 3
         elif toks[i] == 'options':
             # options { language = Java ; }
             assert toks[i+1] == '{'
@@ -41,7 +42,7 @@ def parse(toks):
                 d['options'][toks[i]] = toks[i+2]
                 i += 4
             i += 1
-        elif toke[i] == 'tokens':
+        elif toks[i] == 'tokens':
             # tokens { A, B }
             assert toks[i+1] == '{'
             i += 2
@@ -58,20 +59,28 @@ def parse(toks):
         else:
             # normal production
             # e : e | e ;
-            name = toks[i]
-            assert toks[i+1] == ':'
-            toks += 2
+            # fragment e : e | e ;
 
-
-
-
+            isfragment = (toks[i] == 'fragment')
+            if isfragment:
+                name = toks[i]
+                assert toks[i+2] == ':'
+            else:
+                name = toks[i]
+                assert toks[i+1] == ':'
+            k = i
+            while k < len(toks) and toks[k] != ';':
+                k += 1
+            assert toks[k] == ';'
+            i = k + 1
+    return d
 
 def tokenize(S):
     i = 0
     a = 0
     toks = []
     while i < len(S):
-        #print i, S[i], S[i-10:i+10]
+        # print i, S[i], S[i-10:i+10]
         if S[i:i+2] == '/*':
             while i < len(S) and S[i:i+2] != '*/':
                 i += 1
@@ -89,7 +98,7 @@ def tokenize(S):
         elif S[i:i+2] in ['::', '->']:
             toks.append(S[i:i+2])
             i += 2
-        elif S[i] in [':', ';', '|', '(', ')', '?', '+', '*', '~', '.', '@']:
+        elif S[i] in [':', ';', '|', '(', ')', '?', '+', '*', '~', '.', '@', '=', ';', '}']:
             toks.append(S[i])
             i += 1
         elif S[i] in ['"', "'"]:
@@ -110,9 +119,16 @@ def tokenize(S):
                     i += 2
                 else:
                     i += 1
-            toks.append(S[a:i+1])
+            toks.append(S[a])
+            toks.append(S[a+1:i])
+            toks.append(S[i])
             i += 1
         elif S[i] == '{':
+            if (len(toks) > 0 and toks[-1] == 'options'):
+                toks.append(S[i])
+                i += 1
+                continue
+
             a = i
             toks.append(S[i])
             i += 1
@@ -143,12 +159,19 @@ def tokenize(S):
     return toks
 
 def main():
-    #fname = "C://Users//ale//Documents//GitHub//grammars-v4//c//C.g4"
-    fname = "C://Users//ale//Documents//GitHub//grammars-v4//ecmascript//ECMAScript.g4"
-    #fname = "C://Users//ale//Documents//GitHub//grammars-v4//vb6//VisualBasic6.g4"
+    if len(sys.argv) > 1:
+        fname = sys.argv[1]
+    else:
+        #fname = "C://Users//ale//Documents//GitHub//grammars-v4//c//C.g4"
+        fname = "C://Users//ale//Documents//GitHub//grammars-v4//ecmascript//ECMAScript.g4"
+        #fname = "C://Users//ale//Documents//GitHub//grammars-v4//vb6//VisualBasic6.g4"
+
     with open(fname, 'r') as f:
         toks = tokenize(f.read())
     pprint.pprint(toks)
+
+    tree = parse(toks)
+    pprint.pprint(tree)
 
 if __name__ == '__main__':
     main()
